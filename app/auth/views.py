@@ -60,9 +60,9 @@ def register():
         db.session.add(user)
         db.session.commit()
         token = user.generate_confirmation_token()
-        send_email(user.email, 'Confirm Your Account',
-                   'auth/email/confirm', user=user, token=token)
-        flash('A confirmation email has been sent to you by email.')
+        user.confirm(token)  # Confirm the user immediately
+        db.session.commit()
+        flash('Your account has been created.')
         return redirect(url_for('auth.login'))
     return render_template('auth/register.html', form=form)
 
@@ -147,11 +147,11 @@ def change_email_request():
         if current_user.verify_password(form.password.data):
             new_email = form.email.data.lower()
             token = current_user.generate_email_change_token(new_email)
-            send_email(new_email, 'Confirm your email address',
-                       'auth/email/change_email',
-                       user=current_user, token=token)
-            flash('An email with instructions to confirm your new email '
-                  'address has been sent to you.')
+            if current_user.change_email(token):  # Confirm the new email immediately
+                db.session.commit()
+                flash('Your email address has been updated.')
+            else:
+                flash('Invalid email or password.')
             return redirect(url_for('main.index'))
         else:
             flash('Invalid email or password.')
