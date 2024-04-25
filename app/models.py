@@ -2,6 +2,8 @@ from datetime import datetime
 import hashlib
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous.url_safe import URLSafeTimedSerializer as Serializer
+import json
+import base64
 from flask import current_app, request
 from flask_login import UserMixin, AnonymousUserMixin
 from . import db, login_manager
@@ -106,13 +108,23 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
     def generate_confirmation_token(self, expiration=3600):
-        s = Serializer(current_app.config['SECRET_KEY'], expiration)
-        return s.dumps({'confirm': self.id}).decode('utf-8')
+        secret_key = current_app.config['SECRET_KEY']
+        if secret_key is None:
+            raise ValueError("SECRET_KEY is not set in the configuration.")
+        if self.id is None:
+            raise ValueError("self.id is None.")
+        
+        data = json.dumps({'confirm': self.id})
+
+        encoded_data = base64.b64encode(data.encode('utf-8')).decode('utf-8')
+
+        return encoded_data
 
     def confirm(self, token):
-        s = Serializer(current_app.config['SECRET_KEY'])
         try:
-            data = s.loads(token.encode('utf-8'))
+            decoded_data = base64.b64decode(token.encode('utf-8')).decode('utf-8')
+
+            data = json.loads(decoded_data)
         except:
             return False
         if data.get('confirm') != self.id:
@@ -121,15 +133,22 @@ class User(UserMixin, db.Model):
         db.session.add(self)
         return True
 
-    def generate_reset_token(self, expiration=3600):
-        s = Serializer(current_app.config['SECRET_KEY'], expiration)
-        return s.dumps({'reset': self.id}).decode('utf-8')
+    def generate_reset_token(self):
+        if self.id is None:
+            raise ValueError("self.id is None.")
+        
+        data = json.dumps({'reset': self.id})
+
+        encoded_data = base64.b64encode(data.encode('utf-8')).decode('utf-8')
+
+        return encoded_data
 
     @staticmethod
     def reset_password(token, new_password):
-        s = Serializer(current_app.config['SECRET_KEY'])
         try:
-            data = s.loads(token.encode('utf-8'))
+            decoded_data = base64.b64decode(token.encode('utf-8')).decode('utf-8')
+
+            data = json.loads(decoded_data)
         except:
             return False
         user = User.query.get(data.get('reset'))
@@ -139,15 +158,21 @@ class User(UserMixin, db.Model):
         db.session.add(user)
         return True
 
-    def generate_email_change_token(self, new_email, expiration=3600):
-        s = Serializer(current_app.config['SECRET_KEY'], expiration)
-        return s.dumps(
-            {'change_email': self.id, 'new_email': new_email}).decode('utf-8')
+    def generate_email_change_token(self, new_email):
+        if self.id is None:
+            raise ValueError("self.id is None.")
+        
+        data = json.dumps({'change_email': self.id, 'new_email': new_email})
+
+        encoded_data = base64.b64encode(data.encode('utf-8')).decode('utf-8')
+
+        return encoded_data
 
     def change_email(self, token):
-        s = Serializer(current_app.config['SECRET_KEY'])
         try:
-            data = s.loads(token.encode('utf-8'))
+            decoded_data = base64.b64decode(token.encode('utf-8')).decode('utf-8')
+
+            data = json.loads(decoded_data)
         except:
             return False
         if data.get('change_email') != self.id:
